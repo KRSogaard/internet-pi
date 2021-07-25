@@ -1,77 +1,62 @@
-# Internet Pi
+# Internet Monitoring Docker Stack with Prometheus + Grafana
 
-[![CI](https://github.com/geerlingguy/internet-pi/workflows/CI/badge.svg?event=push)](https://github.com/geerlingguy/internet-pi/actions?query=workflow%3ACI)
+> This repository is a fork from [maxandersen/internet-monitoring](https://github.com/maxandersen/internet-monitoring), tailored for use on a Raspberry Pi. It has only been tested on a Raspberry Pi 4 running Pi OS 64-bit beta.
+>
+> This has also recently been merged into the internet-pi repository, so there could be a few little things that need tweaking.
 
-**A Raspberry Pi Configuration for Internet connectivity**
+Stand-up a Docker [Prometheus](http://prometheus.io/) stack containing Prometheus, Grafana with [blackbox-exporter](https://github.com/prometheus/blackbox_exporter), and [speedtest-exporter](https://github.com/MiguelNdeCarvalho/speedtest-exporter) to collect and graph home Internet reliability and throughput.
 
-I have had a couple Pis doing random Internet-related duties for years. It's finally time to formalize their configs and make all the DNS/ad-blocking/monitoring stuff encapsulated into one Ansible project.
+## Pre-requisites
 
-So that's what this is.
+Make sure Docker and [Docker Compose](https://docs.docker.com/compose/install/) are installed on your Docker host machine.
 
-## Features
+## Quick Start
 
-**Internet Monitoring**: Installs Prometheus and Grafana, along with a few Docker containers to monitor your Internet connection with Speedtest.net speedtests and HTTP tests so you can see uptime, ping stats, and speedtest results over time.
+```
+git clone https://github.com/geerlingguy/internet-monitoring
+cd internet-monitoring
+docker-compose up -d
+```
 
-![Internet Monitoring Dashboard in Grafana](/images/internet-monitoring.png)
+Go to [http://localhost:3030/d/o9mIe_Aik/internet-connection](http://localhost:3030/d/o9mIe_Aik/internet-connection) (change `localhost` to your docker host ip/name).
 
-**Pi-hole**: Installs the Pi-hole Docker configuration so you can use Pi-hole for network-wide ad-blocking and local DNS. Make sure to update your network router config to direct all DNS queries through your Raspberry Pi if you want to use Pi-hole effectively!
+## Configuration
 
-![Pi-hole on the Internet Pi](/images/pi-hole.png)
+To change what hosts you ping you change the `targets` section in [/prometheus/pinghosts.yaml](./prometheus/pinghosts.yaml) file.
 
-Other features:
+For speedtest the only relevant configuration is how often you want the check to happen. It is at 30 minutes by default which might be too much if you have limit on downloads. This is changed by editing `scrape_interval` under `speedtest` in [/prometheus/prometheus.yml](./prometheus/prometheus.yml).
 
-  - **Shelly Plug Monitoring**: Installs a [`shelly-plug-prometheus` exporter](https://github.com/geerlingguy/shelly-plug-prometheus) and a Grafana dashboard, which tracks and displays power usage on a Shelly Plug running on the local network. (Disabled by default. Enable and configure using the `shelly_plug_*` vars in `config.yml`.)
-  - **AirGradient Monitoring**: Installs an [`airgradient-prometheus` exporter](https://github.com/geerlingguy/airgradient-prometheus) and a Grafana dashboard, which tracks and displays air quality over time via a local AirGradient DIY monitor. (Disabled by default. Enable and configure using the `airgradient_enable` var in `config.yml`.)
-  - **Starlink Monitoring**: Installs a [`starlink` prometheus exporter](https://github.com/danopstech/starlink_exporter) and a Grafana dashboard, which tracks and displays Starlink statistics. (Disabled by default. Enable and configure using the `starlink_enable` var in `config.yml`.)
+Once configurations are done, run the following command:
 
-**IMPORTANT NOTE**: If you use the included Internet monitoring, it will download a decently-large amount of data through your Internet connection on a daily basis. Don't use it, or tune the `internet-monitoring` setup to not run the speedtests as often, if you have a metered connection!
+    $ docker-compose up -d
 
-## Recommended Pi and OS
+That's it. docker-compose builds the entire Grafana and Prometheus stack automagically.
 
-You should use a Raspberry Pi 4 model B or better. The Pi 4 and later generations of Pi include a full gigabit network interface and enough I/O to reliably measure fast Internet connections.
+The Grafana Dashboard is now accessible via: `http://<Host IP Address>:3030` for example http://localhost:3030
 
-Older Pis work, but have many limitations, like a slower CPU and sometimes very-slow NICs that limit the speed test capability to 100 Mbps or 300 Mbps on the Pi 3 model B+.
+username - admin
+password - wonka (Password is stored in the `config.monitoring` env file)
 
-Other computers and VMs may run this configuration as well, but it is only regularly tested on a Raspberry Pi.
+The DataSource and Dashboard for Grafana are automatically provisioned.
 
-The configuration is tested against Raspberry Pi OS, both 64-bit and 32-bit, and runs great on that or a generic Debian installation.
+If all works it should be available at http://localhost:3030/d/o9mIe_Aik/internet-connection - if no data shows up try change the timeduration to something smaller.
 
-It should also work with Ubuntu for Pi, or Arch Linux, but has not been tested on other operating systems.
+<center><img src="images/dashboard.png" width="4600" heighth="500"></center>
 
-## Setup
+## Interesting urls
 
-  1. [Install Ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html). The easiest way (especially on Pi or a Debian system) is via Pip:
-     1. (If on Pi/Debian): `sudo apt-get install -y python3-pip`
-     2. (Everywhere): `pip3 install ansible`
-  2. Clone this repository: `git clone https://github.com/geerlingguy/internet-pi.git`, then enter the repository directory: `cd internet-pi`.
-  3. Install requirements: `ansible-galaxy collection install -r requirements.yml`
-  4. Make copies of the following files and customize them to your liking:
-     - `example.inventory.ini` to `inventory.ini` (replace IP address with your Pi's IP, or comment that line and uncomment the `connection=local` line if you're running it on the Pi you're setting up).
-     - `example.config.yml` to `config.yml`
-  5. Run the playbook: `ansible-playbook main.yml`
+http://localhost:9090/targets shows status of monitored targets as seen from prometheus - in this case which hosts being pinged and speedtest. note: speedtest will take a while before it shows as UP as it takes about 30s to respond.
 
-> **If running locally on the Pi**: You may encounter an error like "Error while fetching server API version". If you do, please either reboot or log out and log back in, then run the playbook again.
+http://localhost:9090/graph?g0.expr=probe_http_status_code&g0.tab=1 shows prometheus value for `probe_http_status_code` for each host. You can edit/play with additional values. Useful to check everything is okey in prometheus (in case Grafana is not showing the data you expect).
 
-## Usage
+http://localhost:9115 blackbox exporter endpoint. Lets you see what have failed/succeded.
 
-### Pi-hole
+http://localhost:9798/metrics speedtest exporter endpoint. Does take about 30 seconds to show its result as it runs an actual speedtest when requested.
 
-Visit the Pi's IP address (e.g. http://192.168.1.10/) and use the `pihole_password` you configured in your `config.yml` file.
+## Thanks and a disclaimer
 
-### Grafana
+Thanks to @maxandersen for making the original project this fork is based on.
 
-Visit the Pi's IP address with port 3030 (e.g. http://192.168.1.10:3030/), and log in with username `admin` and the password `monitoring_grafana_admin_password` you configured in your `config.yml`.
+Thanks to @vegasbrianc work on making a [super easy docker](https://github.com/vegasbrianc/github-monitoring) stack for running prometheus and grafana.
 
-> Note: The `monitoring_grafana_admin_password` is only used the first time Grafana starts up; if you need to change it later, do it via Grafana's admin UI.
-
-## Updating and Backup
-
-A guide for backing up your configurations and monitoring data, and for keeping everything up to date is being worked on in [Issue #7: Create upgrade / update guide](https://github.com/geerlingguy/internet-pi/issues/7).
-
-## License
-
-MIT
-
-## Author
-
-This project was created in 2021 by [Jeff Geerling](https://www.jeffgeerling.com/).
+This setup is not secured in any way, so please only use on non-public networks, or find a way to secure it on your own.

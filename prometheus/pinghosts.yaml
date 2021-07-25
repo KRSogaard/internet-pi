@@ -1,0 +1,7 @@
+---
+- targets:
+  - http://www.google.com/;google.com
+  - https://github.com/;github.com
+  - https://www.netflix.com/;netflix.com
+  - https://www.hulu.com/;hulu.com
+  - https://www.amazon.com/;amazon.com
